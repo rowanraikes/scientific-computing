@@ -24,14 +24,16 @@ def u_exact(x,t):
     y = np.exp(-kappa*(pi**2/L**2)*t)*np.sin(pi*x/L)
     return y
 
-def heat_eq_forward_euler(u_j, u_jp1, lmbda, mx, mt):
+def solve_heat_eq(u_j, u_jp1, lmbda, descritation, mx, mt):
 
     for n in range(1, mt+1):
 
-    # Forward Euler timestep at inner mesh points
+        # Descritation at each time step
         for i in range(1, mx):
-            u_jp1[i] = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + u_j[i+1])
 
+            u_jp1[i] = descritation(u_j, u_jp1, lmbda, i)
+
+        #print(u_jp1)
 
         # Boundary conditions
         u_jp1[0] = 0; u_jp1[mx] = 0
@@ -41,21 +43,21 @@ def heat_eq_forward_euler(u_j, u_jp1, lmbda, mx, mt):
 
     return u_j
 
+def forward_euler_descritation(u_j, u_jp1, lmbda, i):
 
-def heat_eq_backward_euler(u_j, u_jp1, lmbda, mx, mt):
+    # Forward Euler timestep   
+    return u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + u_j[i+1])
 
-    for n in range(1, mt+1):
+def backward_euler_descritation(u_j, u_jp1, lmbda, i):
 
-        for i in range(1, mx):
-            u_jp1[i] = u_j[i] + (lmbda / 2)*(u_j[i+1] - 2*u_j[i] + u_j[i-1] + u_jp1[i+1] - 2*u_jp1[i] + u_jp1[i-1])
-        
-        # Boundary conditions 
-        u_jp1[0] = 0; u_jp1[mx] = 0
-        
-        # Update u_j
-        u_j[:] = u_jp1[:]
+    # Backward Euler timestep   
+    return u_j[i] + (lmbda / 2)*(u_j[i+1] - 2*u_j[i] + u_j[i-1] + u_jp1[i+1] - 2*u_jp1[i] + u_jp1[i-1])
 
-    return u_j
+def crank_nicholson_descritation(u_j, u_jp1, lmbda, i):
+
+    # Crank Nicholson timestep   
+    return u_j[i] + (lmbda / 2)*(u_jp1[i+1] - 2*u_jp1[i] + u_jp1[i-1] + u_j[i+1] - 2*u_j[i] + u_j[i-1])
+
 
 # set numerical parameters
 mx = 10     # number of gridpoints in space
@@ -79,9 +81,8 @@ u_jp1 = np.zeros(x.size)      # u at next time step
 for i in range(0, mx+1):
     u_j[i] = u_I(x[i])
 
-#u_j = heat_eq_forward_euler(u_j, u_jp1, lmbda, mx, mt)
 
-u_j = heat_eq_backward_euler(u_j, u_jp1, lmbda, mx, mt)
+u_j = solve_heat_eq(u_j, u_jp1, lmbda, crank_nicholson_descritation, mx, mt)
 
 # plot the final result and exact solution
 plt.plot(x,u_j,'ro',label='num')
