@@ -10,11 +10,7 @@ import pylab as pl
 from math import pi
 from matplotlib import pyplot as plt
 
-# set problem parameters/functions
-kappa = 1.0   # diffusion constant
-L=1.0         # length of spatial domain
-T=0.5        # total time to solve for
-def u_I(x):
+def u_I(x,L):
     # initial temperature distribution
     y = np.sin(pi*x/L)
     return y
@@ -24,14 +20,30 @@ def u_exact(x,t):
     y = np.exp(-kappa*(pi**2/L**2)*t)*np.sin(pi*x/L)
     return y
 
-def solve_heat_eq(u_j, u_jp1, lmbda, descritation, mx, mt):
+def solve_heat_eq(mx, mt, L, T, kappa):
+
+    x = np.linspace(0, L, mx+1)     # mesh points in space
+    t = np.linspace(0, T, mt+1)     # mesh points in time
+    deltax = x[1] - x[0]            # gridspacing in x
+    deltat = t[1] - t[0]            # gridspacing in t
+    lmbda = kappa*deltat/(deltax**2) 
+
+    descritisation = forward_euler_descritisation
+
+    u_j = np.zeros(x.size)        # u at current time step
+    u_jp1 = np.zeros(x.size)   
+
+    # Set initial condition
+    for i in range(0, mx+1):
+        u_j[i] = u_I(x[i], L)
+
 
     for n in range(1, mt+1):
 
         # Descritation at each time step
         for i in range(1, mx):
 
-            u_jp1[i] = descritation(u_j, u_jp1, lmbda, i)
+            u_jp1[i] = descritisation(u_j, u_jp1, lmbda, i)
 
         #print(u_jp1)
 
@@ -43,52 +55,40 @@ def solve_heat_eq(u_j, u_jp1, lmbda, descritation, mx, mt):
 
     return u_j
 
-def forward_euler_descritation(u_j, u_jp1, lmbda, i):
+def forward_euler_descritisation(u_j, u_jp1, lmbda, i):
 
     # Forward Euler timestep   
     return u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + u_j[i+1])
 
-def backward_euler_descritation(u_j, u_jp1, lmbda, i):
+def backward_euler_descritisation(u_j, u_jp1, lmbda, i):
 
     # Backward Euler timestep   
     return u_j[i] + (lmbda / 2)*(u_j[i+1] - 2*u_j[i] + u_j[i-1] + u_jp1[i+1] - 2*u_jp1[i] + u_jp1[i-1])
 
-def crank_nicholson_descritation(u_j, u_jp1, lmbda, i):
+def crank_nicholson_descritisation(u_j, u_jp1, lmbda, i):
 
     # Crank Nicholson timestep   
     return u_j[i] + (lmbda / 2)*(u_jp1[i+1] - 2*u_jp1[i] + u_jp1[i-1] + u_j[i+1] - 2*u_j[i] + u_j[i-1])
 
 
-# set numerical parameters
-mx = 10     # number of gridpoints in space
-mt = 1000 # number of gridpoints in time
+# # set numerical parameters
+# mx = 10     # number of gridpoints in space
+# mt = 1000 # number of gridpoints in time
 
-# set up the numerical environment variables
-x = np.linspace(0, L, mx+1)     # mesh points in space
-t = np.linspace(0, T, mt+1)     # mesh points in time
-deltax = x[1] - x[0]            # gridspacing in x
-deltat = t[1] - t[0]            # gridspacing in t
-lmbda = kappa*deltat/(deltax**2)    # mesh fourier number
-print("deltax=",deltax)
-print("deltat=",deltat)
-print("lambda=",lmbda)
+# # set problem parameters/functions
+# kappa = 1.0   # diffusion constant
+# L=1.0         # length of spatial domain
+# T=0.1        # total time to solve for
 
-# set up the solution variables
-u_j = np.zeros(x.size)        # u at current time step
-u_jp1 = np.zeros(x.size)      # u at next time step
+# u_j = solve_heat_eq(mx, mt, L, T, kappa)
 
-# Set initial condition
-for i in range(0, mx+1):
-    u_j[i] = u_I(x[i])
+# # plot the final result and exact solution
+# x = np.linspace(0, L, mx+1)
 
-
-u_j = solve_heat_eq(u_j, u_jp1, lmbda, crank_nicholson_descritation, mx, mt)
-
-# plot the final result and exact solution
-plt.plot(x,u_j,'ro',label='num')
-xx = np.linspace(0,L,250)
-plt.plot(xx,u_exact(xx,T),'b-',label='exact')
-plt.xlabel('x')
-plt.ylabel('u(x,0.5)')
-plt.legend(loc='upper right')
-plt.show()
+# plt.plot(x,u_j,'ro',label='num')
+# xx = np.linspace(0,L,250)
+# plt.plot(xx,u_exact(xx,T),'b-',label='exact')
+# plt.xlabel('x')
+# plt.ylabel('u(x,0.5)')
+# plt.legend(loc='upper right')
+# plt.show()
