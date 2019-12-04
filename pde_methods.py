@@ -34,8 +34,11 @@ def solve_heat_eq_matrix(mx, mt, L, T, kappa):
     for i in range(0, mx+1):
         u_j[i] = u_I(x[i], L)
 
-    # create matrix
+    # create A_fe matrix
     A_fe = np.zeros((x.size, x.size))
+
+    # create boundary condition array
+    bound_array = np.zeros(x.size)
 
     for i in range(x.size):
         A_fe[i,i] = (1 - 2*lmbda)
@@ -44,12 +47,16 @@ def solve_heat_eq_matrix(mx, mt, L, T, kappa):
             A_fe[i+1, i] = lmbda
             A_fe[i, i+1] = lmbda
 
-    for n in range(mt):
+    for j in range(mt):
 
-        u_jp1 = np.dot(A_fe, np.transpose(u_j) )
+        # set up boundary conditions for jth time point
+        bound_array[0] = p(j)
+        bound_array[x.size-1] = q(j)
+
+        u_jp1 = np.add(np.dot(A_fe, np.transpose(u_j)), lmbda*bound_array)
 
         # Boundary conditions (outer mesh points)
-        u_jp1[0] = 0; u_jp1[mx] = 0
+        u_jp1[0] = p(j); u_jp1[mx] = q(j)
         
         # Update u_j
         u_j[:] = u_jp1[:]
@@ -67,11 +74,6 @@ def solve_heat_eq(mx, mt, L, T, kappa):
     deltat = t[1] - t[0]            # gridspacing in t
     lmbda = kappa*deltat/(deltax**2) 
 
-    pj = 0   # boundary conditions
-    qj = 0   #
-
-    descritisation = forward_euler_descritisation
-
     u_j = np.zeros(x.size)        # u at current time step
     u_jp1 = np.zeros(x.size)   
 
@@ -80,34 +82,43 @@ def solve_heat_eq(mx, mt, L, T, kappa):
         u_j[i] = u_I(x[i], L)
 
 
-    for n in range(1, mt+1):
+    for j in range(1, mt+1):
 
         # Calculate inner mesh points
         for i in range(1, mx):
 
-
-
-            u_jp1[i] = descritisation(u_j, u_jp1, lmbda, i)
+            u_jp1[i] = forward_euler_dirchlet(u_j, u_jp1, lmbda, i, mx)
 
         #print(u_jp1)
 
         # Boundary conditions (outer mesh points)
-        u_jp1[0] = pj; u_jp1[mx] = qj
+        u_jp1[0] = p(j); u_jp1[mx] = q(j)
         
         # Update u_j
         u_j[:] = u_jp1[:]
 
     return u_j
 
-def forward_euler_dirchlet(u_j, u_jp1, lmbda, i, mx, pj, qj):
+
+# Dirichlet conditions
+def p(j):
+    return 0.1
+
+def q(j): 
+    return 0.1
+
+
+def forward_euler_dirchlet(u_j, u_jp1, lmbda, i, mx):
+
+    j = 1
 
 
     # first boundary timestep
     if i == 1:
-        u_jp1 = u_j[i] + lmbda*(2*u_j[i] + u_j[i+1] + pj)
+        u_jp1 = u_j[i] + lmbda*(2*u_j[i] + u_j[i+1] + p(j) )
 
     if i == mx:
-        u_jp1 = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + qj)
+        u_jp1 = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + q(j) )
 
     # normal timestep 
     else:
@@ -134,14 +145,14 @@ def crank_nicholson_descritisation(u_j, u_jp1, lmbda, i):
 
 # set numerical parameters
 mx = 10     # number of gridpoints in space
-mt = 10    # number of gridpoints in time
+mt = 1000    # number of gridpoints in time
 
 # set problem parameters/functions
 kappa = 1.0   # diffusion constant
 L=1.0         # length of spatial domain
-T=0.01     # total time to solve for
+T=0.5     # total time to solve for
 
-u_j = solve_heat_eq(mx, mt, L, T, kappa)
+u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa)
 
 print(u_j)
 
@@ -156,4 +167,3 @@ plt.ylabel('u(x,0.5)')
 plt.legend(loc='upper right')
 plt.show()
 
-solve_heat_eq_matrix(mx, mt, L, T, kappa)
