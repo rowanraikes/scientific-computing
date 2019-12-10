@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from pde_methods import solve_heat_eq
 
 # Exact solution of heat equation
+# with dirichlet conditions u(0) = u(L) = 0
 def u_exact(x,t,L):
    
     y = np.exp(-kappa*(pi**2/L**2)*t)*np.sin(pi*x/L)
