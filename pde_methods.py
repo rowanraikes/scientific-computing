@@ -61,7 +61,7 @@ def solve_heat_eq_matrix(mx, mt, L, T, kappa, bound_cond):
 
     return(u_j)
 
-def neumann_bound_cond(u_j, lmbda, dx, j):
+def neumann_bound_cond_fe(u_j, lmbda, dx, j):
 
     # create forward euler matrix 
     A = np.zeros((u_j.size, u_j.size))
@@ -84,12 +84,10 @@ def neumann_bound_cond(u_j, lmbda, dx, j):
     # compute u(j+1) array
     u_jp1 = np.add(np.dot(A,u_j), 2*lmbda*dx*bound_array)
 
-
-
     return u_jp1
 
 
-def dirichlet_bound_cond(u_j, lmbda, dt, j):
+def dirichlet_bound_cond_fe(u_j, lmbda, dt, j):
 
     u_jp1 = np.zeros(u_j.size)
 
@@ -124,9 +122,28 @@ def dirichlet_bound_cond(u_j, lmbda, dt, j):
     u_jp1[0] = p(j)
     u_jp1[u_j.size-1] = q(j)
 
+    return u_jp1
 
+def backward_euler(u_j, lmbda, dt, j):
+
+    # create backward euler matrix
+    A_be = np.zeros((u_j.size, u_j.size))
+
+    for i in range(0,u_j.size):
+
+        A_be[i,i] = (1 + 2*lmbda)
+
+        if i < u_j.size - 1:
+            A_be[i+1, i] = -lmbda
+            A_be[i, i+1] = -lmbda
+
+    u_jp1 = np.dot(u_j, np.linalg.inv(A_be) )
+
+    u_jp1[0] = p(j)
+    u_jp1[u_j.size-1] = q(j)
 
     return u_jp1
+
 
 def RHS_fun(j, u_j):
 
@@ -136,7 +153,7 @@ def RHS_fun(j, u_j):
 
 
         if i == 1:
-            s_j[i] = 1
+            s_j[i] = 0
         else:
             s_j[i] = 0
     
@@ -165,7 +182,8 @@ kappa = 1.0   # diffusion constant
 L=1.0         # length of spatial domain
 T=0.5   # total time to solve for
 
-u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet_bound_cond)
+u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet_bound_cond_fe )
+print(u_j)
 # u_j2 = solve_heat_eq_matrix(mx, mt, L, 0.04, kappa)
 # u_j3 = solve_heat_eq_matrix(mx, mt, L, 0.06, kappa)
 # u_j4 = solve_heat_eq_matrix(mx, mt, L, 0.08, kappa)

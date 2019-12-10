@@ -29,33 +29,68 @@ def solve_heat_eq(mx, mt, L, T, kappa):
 
     for j in range(1, mt+1):
 
-        u_jp1 = forward_euler(u_j, lmbda, i, j, mx, dx)
+        u_jp1 = backward_euler(u_j, lmbda, i, j, mx, dx, dt)
+        print(u_jp1)
  
         # Update u_j
         u_j[:] = u_jp1[:]
 
     return u_j
 
-def forward_euler(u_j, lmbda, i, j, mx, dx):
+def backward_euler(u_j, lmbda, i, j, mx, dx, dt):
+
+    u_jp1 = np.zeros(u_j.size)
+
+
+    # Dirichlet boundary conds ###############
+
+    # inner mesh points
+    for i in range(1, mx):
+
+        # grid points adjacent to boundary
+        if i == 1:
+            u_jp1[i] = u_j[i] + lmbda*( u_jp1[i+1] - 2*u_jp1[i] + p(j+1) )  
+
+        if i == mx-1:
+            
+            u_jp1[i] = u_j[i] + lmbda*(u_jp1[i-1] - 2*u_jp1[i] + q(j+1) )
+
+        # normal timestep 
+        else:
+            u_jp1[i] = u_j[i] + lmbda*( u_jp1[i+1] - 2*u_jp1[i] + u_jp1[i-1]) + dt*RHS_fun(i,j)
+
+    u_jp1[0] = p(j)
+    u_jp1[u_j.size-1] = q(j)
+
+    return u_jp1
+
+
+
+def forward_euler(u_j, lmbda, i, j, mx, dx, dt):
 
     u_jp1 = np.zeros(u_j.size)
 
     # Dirichlet boundary conds ###############
+
+    # inner mesh points
     for i in range(1, mx):
 
+        # grid points adjacent to boundary
         if i == 1:
             u_jp1[i] = u_j[i] + lmbda*(2*u_j[i] + u_j[i+1] + p(j) )
 
-        if i == mx:
+        if i == mx-1:
+            
             u_jp1[i] = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + q(j) )
 
         # normal timestep 
         else:
-            u_jp1[i] = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + u_j[i+1]) + RHS_fun(i,j)
+            u_jp1[i] = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + u_j[i+1]) + dt*RHS_fun(i,j)
 
     # end points
     u_jp1[0] = p(j)    
     u_jp1[u_j.size-1] = q(j)
+
 
     # Neumann #################
 
@@ -100,8 +135,8 @@ def RHS_fun(i,j):
 
 
 # set numerical parameters
-mx = 30     # number of gridpoints in space
-mt = 1000    # number of gridpoints in time
+mx = 10     # number of gridpoints in space
+mt = 10   # number of gridpoints in time
 
 # set problem parameters/functions
 kappa = 1.0   # diffusion constant
@@ -113,6 +148,8 @@ u_j2 = solve_heat_eq(mx, mt, L, 0.2, kappa)
 u_j3 = solve_heat_eq(mx, mt, L, 0.3, kappa)
 u_j4 = solve_heat_eq(mx, mt, L, 0.4, kappa)
 u_j5 = solve_heat_eq(mx, mt, L, 0.5, kappa)
+
+print(u_j5)
 
 
 # plot the final result and exact solution
