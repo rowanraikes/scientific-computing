@@ -16,9 +16,9 @@ def solve_heat_eq(mx, mt, L, T, kappa):
 
     x = np.linspace(0, L, mx+1)     # mesh points in space
     t = np.linspace(0, T, mt+1)     # mesh points in time
-    deltax = x[1] - x[0]            # gridspacing in x
-    deltat = t[1] - t[0]            # gridspacing in t
-    lmbda = kappa*deltat/(deltax**2) 
+    dx = x[1] - x[0]            # gridspacing in x
+    dt = t[1] - t[0]            # gridspacing in t
+    lmbda = kappa*dt/(dx**2) 
 
     u_j = np.zeros(x.size)        # u at current time step
     u_jp1 = np.zeros(x.size)   
@@ -29,44 +29,70 @@ def solve_heat_eq(mx, mt, L, T, kappa):
 
     for j in range(1, mt+1):
 
-        # Calculate inner mesh points
-        for i in range(1, mx):
-
-            u_jp1[i] = forward_euler_dirchlet(u_j, u_jp1, lmbda, i, j, mx)
-        
+        u_jp1 = forward_euler(u_j, lmbda, i, j, mx, dx)
+ 
         # Update u_j
         u_j[:] = u_jp1[:]
 
     return u_j
 
-def forward_euler_dirchlet(u_j, u_jp1, lmbda, i, j, mx):
+def forward_euler(u_j, lmbda, i, j, mx, dx):
 
+    u_jp1 = np.zeros(u_j.size)
 
-    # first boundary timestep
-    if i == 1:
-        u_jp1 = u_j[i] + lmbda*(2*u_j[i] + u_j[i+1] + p(j) )
+    # Dirichlet boundary conds ###############
+    for i in range(1, mx):
 
-    if i == mx:
-        u_jp1 = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + q(j) )
+        if i == 1:
+            u_jp1[i] = u_j[i] + lmbda*(2*u_j[i] + u_j[i+1] + p(j) )
 
-    # normal timestep 
-    else:
-        u_jp1 = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + u_j[i+1]) + RHS_fun(i,j)
+        if i == mx:
+            u_jp1[i] = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + q(j) )
+
+        # normal timestep 
+        else:
+            u_jp1[i] = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + u_j[i+1]) + RHS_fun(i,j)
+
+    # end points
+    u_jp1[0] = p(j)    
+    u_jp1[u_j.size-1] = q(j)
+
+    # Neumann #################
+
+    # for i in range(0, mx):
+
+    #     if i == 0:
+    #         u_jp1[i] = u_j[0] + lmbda*(2*u_j[1] - 2*u_j[0]) - 2*lmbda*dx*P(j)
+
+    #     if i == mx:
+    #         u_jp1[i] = u_j[mx] + lmbda*(2*u_j[mx-1] - 2*u_j[0]) + 2*lmbda*dx*Q(j) 
+
+    #     # normal timestep 
+    #     else:
+    #         u_jp1[i] = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + u_j[i+1]) + RHS_fun(i,j)
+
 
     return u_jp1
 
 # Dirichlet conditions
 def p(j): # end at x = 0
-    return 0
+    return 0.1
 
 def q(j): # end at x = L
+    return 0.1
+
+# Neumann conditions
+def P(j): # end at x = 0
+    return 0
+
+def Q(j): # end at x = L
     return 0
 
 
 def RHS_fun(i,j):
 
     if i == 3:
-        s_ij = 0.001
+        s_ij = 0
     else:
         s_ij = 0
     

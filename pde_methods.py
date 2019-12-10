@@ -88,20 +88,25 @@ def neumann_bound_cond(u_j, lmbda, dx, j):
 
 def dirichlet_bound_cond(u_j, lmbda, dt, j):
 
-    # create forward euler matrix
-    A_fe = np.zeros((u_j.size, u_j.size))
+    u_jp1 = np.zeros(u_j.size)
 
-    for i in range(u_j.size):
+    # create forward euler matrix
+    A_fe = np.zeros((u_j.size-2, u_j.size-2))
+
+    for i in range(0,u_j.size-2):
+
         A_fe[i,i] = (1 - 2*lmbda)
 
-        if i < u_j.size - 1:
+        if i < u_j.size - 3:
             A_fe[i+1, i] = lmbda
             A_fe[i, i+1] = lmbda
 
+
     # create boundary condition array
-    bound_array = np.zeros(u_j.size)
+    bound_array = np.zeros(u_j.size-2)
     bound_array[0] = p(j)
-    bound_array[u_j.size-1] = q(j)
+    bound_array[u_j.size-3] = q(j)
+
 
     # evaluate RHS function
     s_j = np.zeros(u_j.size)
@@ -111,7 +116,13 @@ def dirichlet_bound_cond(u_j, lmbda, dt, j):
         s_j[i] = RHS_fun(i,j)
 
     # compute u(j+1) array
-    u_jp1 = np.add(np.dot(A_fe, np.transpose(u_j)), lmbda*bound_array, dt*s_j)
+    u_jp1[1:-1] = np.add(np.dot(A_fe, np.transpose(u_j[1:-1]) ) , lmbda*bound_array ) #dt*s_j)
+
+    # update boundary nodes
+    u_jp1[0] = p(j)
+    u_jp1[u_j.size-1] = q(j)
+
+
 
     return u_jp1
 
@@ -126,10 +137,10 @@ def RHS_fun(i,j):
 
 # Dirichlet conditions
 def p(j): # end at x = 0
-    return 0
+    return 0.1
 
 def q(j): # end at x = L
-    return 0
+    return 0.2
 
 # Neumann conditions
 def P(j): # end at x = 0
@@ -139,7 +150,7 @@ def Q(j): # end at x = L
     return -1
 
 # set numerical parameters
-mx = 10     # number of gridpoints in space
+mx = 10    # number of gridpoints in space
 mt = 1000    # number of gridpoints in time
 
 # set problem parameters/functions
@@ -147,18 +158,24 @@ kappa = 1.0   # diffusion constant
 L=1.0         # length of spatial domain
 T=0.5   # total time to solve for
 
-u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa)
+u_j1 = solve_heat_eq_matrix(mx, mt, L, 0.1, kappa)
+u_j2 = solve_heat_eq_matrix(mx, mt, L, 0.2, kappa)
+u_j3 = solve_heat_eq_matrix(mx, mt, L, 0.3, kappa)
+u_j4 = solve_heat_eq_matrix(mx, mt, L, 0.4, kappa)
+u_j5 = solve_heat_eq_matrix(mx, mt, L, 0.5, kappa)
 
-print(u_j)
 
 # plot the final result and exact solution
 x = np.linspace(0, L, mx+1)
 
-plt.plot(x,u_j,'ro',label='num')
+plt.plot(x,u_j1,'r',label='t=0.1')
+plt.plot(x,u_j2,'b',label='t=0.2')
+plt.plot(x,u_j3,'g',label='t=0.3')
+plt.plot(x,u_j4,'c',label='t=0.4')
+plt.plot(x,u_j5,'m',label='t=0.5')
 xx = np.linspace(0,L,250)
 #plt.plot(xx,u_exact(xx,T),'b-',label='exact')
 plt.xlabel('x')
 plt.ylabel('u(x,0.5)')
 plt.legend(loc='upper right')
 plt.show()
-
