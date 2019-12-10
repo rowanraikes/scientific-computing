@@ -47,101 +47,54 @@ def solve_heat_eq_matrix(mx, mt, L, T, kappa):
             A_fe[i+1, i] = lmbda
             A_fe[i, i+1] = lmbda
 
+    # loop over every time point
     for j in range(mt):
 
         # set up boundary conditions for jth time point
         bound_array[0] = p(j)
         bound_array[x.size-1] = q(j)
 
-        u_jp1 = np.add(np.dot(A_fe, np.transpose(u_j)), lmbda*bound_array)
+        u_jp1 = dirichlet_bound_cond(u_j, lmbda, j)
+
+        #u_jp1 = np.add(np.dot(A_fe, np.transpose(u_j)), lmbda*bound_array)
 
         # Boundary conditions (outer mesh points)
-        u_jp1[0] = p(j); u_jp1[mx] = q(j)
+        #u_jp1[0] = p(j); u_jp1[mx] = q(j)
         
         # Update u_j
         u_j[:] = u_jp1[:]
-
 
     return(u_j)
 
+def dirichlet_bound_cond(u_j, lmbda, j):
+
+    # create forward euler matrix
+    A_fe = np.zeros((u_j.size, u_j.size))
+
+    for i in range(u_j.size):
+        A_fe[i,i] = (1 - 2*lmbda)
+
+        if i < u_j.size - 1:
+            A_fe[i+1, i] = lmbda
+            A_fe[i, i+1] = lmbda
+
+    # create boundary condition array
+    bound_array = np.zeros(u_j.size)
+    bound_array[0] = p(j)
+    bound_array[u_j.size-1] = q(j)
 
 
-def solve_heat_eq(mx, mt, L, T, kappa):
-
-    x = np.linspace(0, L, mx+1)     # mesh points in space
-    t = np.linspace(0, T, mt+1)     # mesh points in time
-    deltax = x[1] - x[0]            # gridspacing in x
-    deltat = t[1] - t[0]            # gridspacing in t
-    lmbda = kappa*deltat/(deltax**2) 
-
-    u_j = np.zeros(x.size)        # u at current time step
-    u_jp1 = np.zeros(x.size)   
-
-    # Set initial condition
-    for i in range(0, mx+1):
-        u_j[i] = u_I(x[i], L)
-
-
-    for j in range(1, mt+1):
-
-        # Calculate inner mesh points
-        for i in range(1, mx):
-
-            u_jp1[i] = forward_euler_dirchlet(u_j, u_jp1, lmbda, i, mx)
-
-        #print(u_jp1)
-
-        # Boundary conditions (outer mesh points)
-        u_jp1[0] = p(j); u_jp1[mx] = q(j)
-        
-        # Update u_j
-        u_j[:] = u_jp1[:]
-
-    return u_j
-
-
-# Dirichlet conditions
-def p(j):
-    return 0.1
-
-def q(j): 
-    return 0.1
-
-
-def forward_euler_dirchlet(u_j, u_jp1, lmbda, i, mx):
-
-    j = 1
-
-
-    # first boundary timestep
-    if i == 1:
-        u_jp1 = u_j[i] + lmbda*(2*u_j[i] + u_j[i+1] + p(j) )
-
-    if i == mx:
-        u_jp1 = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + q(j) )
-
-    # normal timestep 
-    else:
-        u_jp1 = u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + u_j[i+1])
+    # compute u(j+1) array
+    u_jp1 = np.add(np.dot(A_fe, np.transpose(u_j)), lmbda*bound_array)
 
     return u_jp1
 
+# Dirichlet conditions
+def p(j): # end at x=0
+    return 0
 
-def forward_euler_descritisation(u_j, u_jp1, lmbda, i):
-
-    # normal timestep 
-    return u_j[i] + lmbda*(u_j[i-1] - 2*u_j[i] + u_j[i+1])
-
-def backward_euler_descritisation(u_j, u_jp1, lmbda, i):
-
-    # Backward Euler timestep   
-    return u_j[i] + (lmbda / 2)*(u_j[i+1] - 2*u_j[i] + u_j[i-1] + u_jp1[i+1] - 2*u_jp1[i] + u_jp1[i-1])
-
-def crank_nicholson_descritisation(u_j, u_jp1, lmbda, i):
-
-    # Crank Nicholson timestep   
-    return u_j[i] + (lmbda / 2)*(u_jp1[i+1] - 2*u_jp1[i] + u_jp1[i-1] + u_j[i+1] - 2*u_j[i] + u_j[i-1])
-
+def q(j): # end at x = L
+    return 0.1
 
 # set numerical parameters
 mx = 10     # number of gridpoints in space
