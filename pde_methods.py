@@ -24,7 +24,7 @@ def u_exact(x,t):
     y = np.exp(-kappa*(pi**2/L**2)*t)*np.sin(pi*x/L)
     return y
 
-def solve_heat_eq_matrix(mx, mt, L, T, kappa, bound_cond, scheme):
+def solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution):
 
     x = np.linspace(0, L, mx+1)     # mesh points in space
     t = np.linspace(0, T, mt+1)     # mesh points in time
@@ -34,58 +34,54 @@ def solve_heat_eq_matrix(mx, mt, L, T, kappa, bound_cond, scheme):
 
     u_j = np.zeros(x.size)
 
-    # Set up matrices 
+    # Set up matrices for dirichlet boundary conditions
     if scheme == "forward_euler":
     # create forward euler matrix
-    # Use sparse matrix
+
         A_diagonals = (lmbda, 1-2*lmbda, lmbda)
-        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1))
+        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1), format='csc')
 
     # create backward euler matrix
     if scheme == "backward_euler":
         A_diagonals = (-lmbda, 1+2*lmbda, -lmbda)
-        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1))
+        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1), format='csc')
         A = inv(A) # performing inversion here saves computation
 
     # create Crank Nicholson matrix
     if scheme == "crank_nicholson":
         A_diagonals = (-lmbda/2, 1+lmbda, -lmbda/2)
-        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1))
+        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1), format='csc')
 
         B_diagonals = (lmbda/2, 1-lmbda, lmbda/2)
-        B = diags(B_diagonals, [-1,0,1], shape = (mx-1,mx-1))
+        B = diags(B_diagonals, [-1,0,1], shape = (mx-1,mx-1),  format='csc')
 
         A = inv(A).dot(B)
 
 
     # Set initial condition
     for i in range(0, mx+1):
-        u_j[i] = u_I(x[i], L)
+        u_j[i] = initial_distribution(x[i], L)
 
     # loop over every time point
     for j in range(mt):
 
-        u_jp1 = bound_cond(u_j, A, lmbda, deltat, j)
+        u_jp1 = bound_cond(u_j, A, lmbda, deltat, j, scheme)
         
         # Update u_j
         u_j[:] = u_jp1[:]
 
     return(u_j)
 
-def forward_euler_neumann(u_j, lmbda, dx, j):
+def neumann(u_j, A, lmbda, dx, j, scheme):
 
-    # create forward euler matrix 
-    A = np.zeros((u_j.size, u_j.size))
+    
+    # Matrix for forward Euler scheme
+    if scheme == "forward_euler":
 
-    for i in range(u_j.size):
-        A[i,i] = (1 - 2*lmbda)
-
-        if i < u_j.size - 1:
-            A[i+1, i] = lmbda
-            A[i, i+1] = lmbda
-
-    A[0,1] = 2*lmbda
-    A[u_j.size-1, u_j.size-2] = 2*lmbda
+        A_diagonals = (lmbda, 1-2*lmbda, lmbda)
+        A = diags(A_diagonals, [-1,0,1], shape = (mx+1,mx+1), format='csc')
+        A[0,1] = 2*lmbda
+        A[u_j.size-1, u_j.size-2] = 2*lmbda
 
     # create bound array
     bound_array = np.zeros(u_j.size)
@@ -93,11 +89,11 @@ def forward_euler_neumann(u_j, lmbda, dx, j):
     bound_array[u_j.size-1] = Q(j)
 
     # compute u(j+1) array
-    u_jp1 = np.add(np.dot(A,u_j), 2*lmbda*dx*bound_array)
+    u_jp1 = np.add(A.dot(u_j), 2*lmbda*dx*bound_array)
 
     return u_jp1
 
-def dirichlet(u_j, A, lmbda, dt, j):
+def dirichlet(u_j, A, lmbda, dt, j, scheme):
 
     u_jp1 = np.zeros(u_j.size)
 
@@ -111,33 +107,6 @@ def dirichlet(u_j, A, lmbda, dt, j):
 
     # compute u(j+1) array
     u_jp1[1:-1] = np.add(A.dot(np.transpose(u_j[1:-1])) , lmbda*bound_array )
-
-    # add RHS function
-    u_jp1 = np.add(u_jp1, dt*s_j)
-
-    # update boundary nodes
-    u_jp1[0] = p(j)
-    u_jp1[u_j.size-1] = q(j)
-
-    return u_jp1
-
-def backward_euler_dirichlet(u_j, lmbda, dt, j):
-
-    u_jp1 = np.zeros(u_j.size)
-
-    A_diagonals = (-lmbda, 1+2*lmbda, -lmbda)
-    A_fe = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1))
-
-    # create boundary condition array
-    bound_array = np.zeros(u_j.size-2)
-    bound_array[0] = p(j)
-    bound_array[u_j.size-3] = q(j)
-
-    # evaluate RHS function
-    s_j = RHS_fun(j, u_j)
-
-    # compute u(j+1) array
-    u_jp1[1:-1] = np.add(np.dot( np.linalg.inv(A_be), np.transpose(u_j[1:-1]) ) , lmbda*bound_array )
 
     # add RHS function
     u_jp1 = np.add(u_jp1, dt*s_j)
@@ -163,24 +132,25 @@ def RHS_fun(j, u_j):
     return s_j
 
 # Dirichlet conditions
-def p(j): # end at x = 0
+def p(j): # u at end at x = 0
     return 0
 
-def q(j): # end at x = L
+def q(j): # u at end at x = L
     return 0
 
 # Neumann conditions
-def P(j): # end at x = 0
-    return 2
+def P(j): # du/dx at end at x = 0
+    return 0
 
-def Q(j): # end at x = L
-    return -2
+def Q(j): # du/dx at end at x = L
+    return 0
 
 def RMSE(exact, num):
 
     error = np.sqrt( np.sum( np.power( np.subtract(exact,num), 2) ) / num.size )
 
     return error
+
 
 # set numerical parameters
 mx = 10   # number of gridpoints in space
@@ -201,21 +171,23 @@ mxs = []
 
 
 
-# for n in range(1,9): # number of points for each exponent
+# for n in range(1,4): # number of points for each exponent
+
+#     for m in range(1,2):
    
-#     mx = np.power(2,n)
+#         mx = m*np.power(10,n)
    
-#     print(mx)
-#     mt = np.power(mx, 2)
+#         print(mx)
+#         mt = mx
 
-#     xx = np.linspace(0,L,mx+1)
+#         xx = np.linspace(0,L,mx+1)
 
-#     u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet, 'forward_euler')
+#         u_j = solve_heat_eq(mx, mt, L, T, kappa, dirichlet, 'crank_nicholson')
 
-#     error = RMSE(u_j, u_exact(xx,T) )
+#         error = RMSE(u_j, u_exact(xx,T) )
 
-#     errors.append(error)
-#     mxs.append(mx)
+#         errors.append(error)
+#         mxs.append(mx)
 
 # slope, intercept = np.polyfit(np.log(mxs), np.log(errors), 1)
 
@@ -224,9 +196,9 @@ mxs = []
 # plt.loglog(mxs, errors)
 # plt.xlabel("Number of grid points in space")
 # plt.ylabel("RMSE")
-# plt.title("Error Plot for Forward Euler")
+# plt.title("Error Plot for Crank-Nicholson")
 
-u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet, 'crank_nicholson' )
+u_j = solve_heat_eq(mx, mt, L, T, kappa, neumann, 'forward_euler', u_I )
 
 #plot the final result and exact solution
 x = np.linspace(0, L, mx+1)
@@ -234,9 +206,9 @@ x = np.linspace(0, L, mx+1)
 plt.plot(x,u_j,'ro',label='t=')
 
 xx = np.linspace(0,L,250)
-plt.plot(xx,u_exact(xx,T),'b-',label='exact')
+#plt.plot(xx,u_exact(xx,T),'b-',label='exact')
 plt.xlabel('x')
 plt.ylabel('u(x,0.5)')
 plt.legend(loc='upper right')
-# plt.show()
+# # plt.show()
 plt.show()
