@@ -11,6 +11,8 @@ from math import pi
 from matplotlib import pyplot as plt
 
 from scipy.sparse import diags
+from scipy.sparse.linalg import inv
+
 
 def u_I(x,L):
     # initial temperature distribution
@@ -22,7 +24,7 @@ def u_exact(x,t):
     y = np.exp(-kappa*(pi**2/L**2)*t)*np.sin(pi*x/L)
     return y
 
-def solve_heat_eq_matrix(mx, mt, L, T, kappa, bound_cond):
+def solve_heat_eq_matrix(mx, mt, L, T, kappa, bound_cond, scheme):
 
     x = np.linspace(0, L, mx+1)     # mesh points in space
     t = np.linspace(0, T, mt+1)     # mesh points in time
@@ -32,31 +34,28 @@ def solve_heat_eq_matrix(mx, mt, L, T, kappa, bound_cond):
 
     u_j = np.zeros(x.size)
 
+    # Set up matrices 
+    if scheme == "forward_euler":
+    # create forward euler matrix
+    # Use sparse matrix
+        A_diagonals = (lmbda, 1-2*lmbda, lmbda)
+        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1))
+
+    # create backward euler matrix
+    if scheme == "backward_euler":
+        A_diagonals = (-lmbda, 1+2*lmbda, -lmbda)
+        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1))
+        A = inv(A) # performing inversion here saves computation
+
+
     # Set initial condition
     for i in range(0, mx+1):
         u_j[i] = u_I(x[i], L)
 
-    # create A_fe matrix
-    A_fe = np.zeros((x.size, x.size))
-
-    # create boundary condition array
-    bound_array = np.zeros(x.size)
-
-    for i in range(x.size):
-        A_fe[i,i] = (1 - 2*lmbda)
-
-        if i < x.size - 1:
-            A_fe[i+1, i] = lmbda
-            A_fe[i, i+1] = lmbda
-
     # loop over every time point
     for j in range(mt):
 
-        # set up boundary conditions for jth time point
-        bound_array[0] = p(j)
-        bound_array[x.size-1] = q(j)
-
-        u_jp1 = bound_cond(u_j, lmbda, deltat, j)
+        u_jp1 = dirichlet(u_j, A, lmbda, deltat, j)
         
         # Update u_j
         u_j[:] = u_jp1[:]
@@ -88,24 +87,9 @@ def forward_euler_neumann(u_j, lmbda, dx, j):
 
     return u_jp1
 
-def forward_euler_dirichlet(u_j, lmbda, dt, j):
+def dirichlet(u_j, A, lmbda, dt, j):
 
     u_jp1 = np.zeros(u_j.size)
-
-    # create forward euler matrix
-    # A_fe = np.zeros((u_j.size-2, u_j.size-2))
-
-    # for i in range(0,u_j.size-2):
-
-    #     A_fe[i,i] = (1 - 2*lmbda)
-
-    #     if i < u_j.size - 3:
-    #         A_fe[i+1, i] = lmbda
-    #         A_fe[i, i+1] = lmbda
-
-    # Use sparse matrix
-    A_diagonals = (lmbda, 1-2*lmbda, lmbda)
-    A_fe = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1))
 
     # create boundary condition array
     bound_array = np.zeros(u_j.size-2)
@@ -116,7 +100,7 @@ def forward_euler_dirichlet(u_j, lmbda, dt, j):
     s_j = RHS_fun(j, u_j)
 
     # compute u(j+1) array
-    u_jp1[1:-1] = np.add(A_fe.dot(np.transpose(u_j[1:-1])) , lmbda*bound_array )
+    u_jp1[1:-1] = np.add(A.dot(np.transpose(u_j[1:-1])) , lmbda*bound_array )
 
     # add RHS function
     u_jp1 = np.add(u_jp1, dt*s_j)
@@ -131,16 +115,8 @@ def backward_euler_dirichlet(u_j, lmbda, dt, j):
 
     u_jp1 = np.zeros(u_j.size)
 
-    # create forward euler matrix
-    A_be = np.zeros((u_j.size-2, u_j.size-2))
-
-    for i in range(0,u_j.size-2):
-
-        A_be[i,i] = (1 + 2*lmbda)
-
-        if i < u_j.size - 3:
-            A_be[i+1, i] = -lmbda
-            A_be[i, i+1] = -lmbda
+    A_diagonals = (-lmbda, 1+2*lmbda, -lmbda)
+    A_fe = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1))
 
     # create boundary condition array
     bound_array = np.zeros(u_j.size-2)
@@ -161,27 +137,6 @@ def backward_euler_dirichlet(u_j, lmbda, dt, j):
     u_jp1[u_j.size-1] = q(j)
 
     return u_jp1
-
-# def thomas(A, X):
-
-#     # solves Y = AX where A is tridiaganol 
-#     Y = np.zeros(X.size) # solutions array
-#     ddash = np.zeros(X.size)
-#     cdash = np.zeros(X.size)
-
-#     Y[X.size-1] = ddash[X.size-1]
-
-#     cdash[0] = A[0,1] / A[0,0]
-
-#     for i in range(1,X.size-1):
-
-#         cdash[i] = A[i,i+1] / A[i,i] - A[i,i-1]*cdash[i-1]
-
-#     print(cdash)
-
-
-#     for i in range(X.size):
-#         Y[-i] = ddash[-i] - cdash[-i]*Y[-i+1]
 
 
 def RHS_fun(j, u_j):
@@ -218,8 +173,8 @@ def RMSE(exact, num):
     return error
 
 # set numerical parameters
-mx = 100   # number of gridpoints in space
-mt = 10000  # number of gridpoints in time
+mx = 10   # number of gridpoints in space
+mt = 1000  # number of gridpoints in time
 
 # set problem parameters/functions
 kappa = 1.0   # diffusion constant
@@ -245,7 +200,7 @@ for n in range(1,9): # number of points for each exponent
 
     xx = np.linspace(0,L,mx+1)
 
-    u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, forward_euler_dirichlet)
+    u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet, 'forward_euler')
 
     error = RMSE(u_j, u_exact(xx,T) )
 
@@ -259,9 +214,9 @@ print("Gradient = ",slope)
 plt.loglog(mxs, errors)
 plt.xlabel("Number of grid points in space")
 plt.ylabel("RMSE")
-plt.title("Plot of error against grid points in space.")
+plt.title("Error Plot for Forward Euler")
 
-# u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, forward_euler_dirichlet )
+# u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet, 'backward_euler' )
 
 # #plot the final result and exact solution
 # x = np.linspace(0, L, mx+1)
@@ -273,5 +228,5 @@ plt.title("Plot of error against grid points in space.")
 # plt.xlabel('x')
 # plt.ylabel('u(x,0.5)')
 # plt.legend(loc='upper right')
-# plt.show()
+# # plt.show()
 plt.show()
