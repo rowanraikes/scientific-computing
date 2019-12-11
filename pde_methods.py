@@ -47,6 +47,16 @@ def solve_heat_eq_matrix(mx, mt, L, T, kappa, bound_cond, scheme):
         A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1))
         A = inv(A) # performing inversion here saves computation
 
+    # create Crank Nicholson matrix
+    if scheme == "crank_nicholson":
+        A_diagonals = (-lmbda/2, 1+lmbda, -lmbda/2)
+        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1))
+
+        B_diagonals = (lmbda/2, 1-lmbda, lmbda/2)
+        B = diags(B_diagonals, [-1,0,1], shape = (mx-1,mx-1))
+
+        A = inv(A).dot(B)
+
 
     # Set initial condition
     for i in range(0, mx+1):
@@ -55,7 +65,7 @@ def solve_heat_eq_matrix(mx, mt, L, T, kappa, bound_cond, scheme):
     # loop over every time point
     for j in range(mt):
 
-        u_jp1 = dirichlet(u_j, A, lmbda, deltat, j)
+        u_jp1 = bound_cond(u_j, A, lmbda, deltat, j)
         
         # Update u_j
         u_j[:] = u_jp1[:]
@@ -191,42 +201,42 @@ mxs = []
 
 
 
-for n in range(1,9): # number of points for each exponent
+# for n in range(1,9): # number of points for each exponent
    
-    mx = np.power(2,n)
+#     mx = np.power(2,n)
    
-    print(mx)
-    mt = np.power(mx, 2)
+#     print(mx)
+#     mt = np.power(mx, 2)
 
-    xx = np.linspace(0,L,mx+1)
+#     xx = np.linspace(0,L,mx+1)
 
-    u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet, 'forward_euler')
+#     u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet, 'forward_euler')
 
-    error = RMSE(u_j, u_exact(xx,T) )
+#     error = RMSE(u_j, u_exact(xx,T) )
 
-    errors.append(error)
-    mxs.append(mx)
+#     errors.append(error)
+#     mxs.append(mx)
 
-slope, intercept = np.polyfit(np.log(mxs), np.log(errors), 1)
+# slope, intercept = np.polyfit(np.log(mxs), np.log(errors), 1)
 
-print("Gradient = ",slope)
+# print("Gradient = ",slope)
 
-plt.loglog(mxs, errors)
-plt.xlabel("Number of grid points in space")
-plt.ylabel("RMSE")
-plt.title("Error Plot for Forward Euler")
+# plt.loglog(mxs, errors)
+# plt.xlabel("Number of grid points in space")
+# plt.ylabel("RMSE")
+# plt.title("Error Plot for Forward Euler")
 
-# u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet, 'backward_euler' )
+u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet, 'crank_nicholson' )
 
-# #plot the final result and exact solution
-# x = np.linspace(0, L, mx+1)
+#plot the final result and exact solution
+x = np.linspace(0, L, mx+1)
 
-# plt.plot(x,u_j,'ro',label='t=')
+plt.plot(x,u_j,'ro',label='t=')
 
-# xx = np.linspace(0,L,250)
-# plt.plot(xx,u_exact(xx,T),'b-',label='exact')
-# plt.xlabel('x')
-# plt.ylabel('u(x,0.5)')
-# plt.legend(loc='upper right')
-# # plt.show()
+xx = np.linspace(0,L,250)
+plt.plot(xx,u_exact(xx,T),'b-',label='exact')
+plt.xlabel('x')
+plt.ylabel('u(x,0.5)')
+plt.legend(loc='upper right')
+# plt.show()
 plt.show()
