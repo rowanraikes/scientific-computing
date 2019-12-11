@@ -4,7 +4,10 @@ import pylab as pl
 from math import pi
 from matplotlib import pyplot as plt
 
-
+def u_exact(x,t):
+    # the exact solution
+    y = np.exp(-kappa*(pi**2/L**2)*t)*np.sin(pi*x/L)
+    return y
 
 def u_I(x,L):
     # initial temperature distribution
@@ -29,7 +32,7 @@ def solve_heat_eq(mx, mt, L, T, kappa):
 
     for j in range(1, mt+1):
 
-        u_jp1 = backward_euler(u_j, lmbda, i, j, mx, dx, dt)
+        u_jp1 = forward_euler(u_j, lmbda, i, j, mx, dx, dt)
         print(u_jp1)
  
         # Update u_j
@@ -143,25 +146,14 @@ kappa = 1.0   # diffusion constant
 L=1.0         # length of spatial domain
 T=0.5   # total time to solve for
 
-u_j1 = solve_heat_eq(mx, mt, L, 0.1, kappa)
-u_j2 = solve_heat_eq(mx, mt, L, 0.2, kappa)
-u_j3 = solve_heat_eq(mx, mt, L, 0.3, kappa)
-u_j4 = solve_heat_eq(mx, mt, L, 0.4, kappa)
-u_j5 = solve_heat_eq(mx, mt, L, 0.5, kappa)
-
-print(u_j5)
-
+u_j = solve_heat_eq(mx, mt, L, 0.5, kappa)
 
 # plot the final result and exact solution
 x = np.linspace(0, L, mx+1)
 
-plt.plot(x,u_j1,'r',label='t=0.1')
-plt.plot(x,u_j2,'b',label='t=0.2')
-plt.plot(x,u_j3,'g',label='t=0.3')
-plt.plot(x,u_j4,'c',label='t=0.4')
-plt.plot(x,u_j5,'m',label='t=0.5')
+plt.plot(x,u_j,'ro',label='t=0.5')
 xx = np.linspace(0,L,250)
-#plt.plot(xx,u_exact(xx,T),'b-',label='exact')
+plt.plot(xx,u_exact(xx,T),'b-',label='exact')
 plt.xlabel('x')
 plt.ylabel('u(x,0.5)')
 plt.legend(loc='upper right')
