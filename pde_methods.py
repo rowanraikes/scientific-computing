@@ -39,7 +39,7 @@ def solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution)
     # create forward euler matrix
 
         A_diagonals = (lmbda, 1-2*lmbda, lmbda)
-        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1), format='csc')
+        A = diags(A_diagonals, [-1,0,1], shape = (mx+1,mx+1), format='csc')
 
     # create backward euler matrix
     if scheme == "backward_euler":
@@ -65,21 +65,20 @@ def solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution)
     # loop over every time point
     for j in range(mt):
 
-        u_jp1 = bound_cond(u_j, A, lmbda, deltat, j, scheme)
+        # evaluate RHS function
+        s_j = RHS_fun(j, u_j)
+
+        u_jp1 = bound_cond(u_j, A, lmbda, deltax, deltat, j, s_j, scheme)
         
         # Update u_j
         u_j[:] = u_jp1[:]
 
     return(u_j)
 
-def neumann(u_j, A, lmbda, dx, j, scheme):
-
-    
-    # Matrix for forward Euler scheme
+def neumann(u_j, A, lmbda, dx, dt, j, s_j, scheme):
+  
+    # edit FE matrix for neumann conditions
     if scheme == "forward_euler":
-
-        A_diagonals = (lmbda, 1-2*lmbda, lmbda)
-        A = diags(A_diagonals, [-1,0,1], shape = (mx+1,mx+1), format='csc')
         A[0,1] = 2*lmbda
         A[u_j.size-1, u_j.size-2] = 2*lmbda
 
@@ -91,19 +90,21 @@ def neumann(u_j, A, lmbda, dx, j, scheme):
     # compute u(j+1) array
     u_jp1 = np.add(A.dot(u_j), 2*lmbda*dx*bound_array)
 
+    # add RHS function
+    u_jp1 = np.add(u_jp1, dt*s_j)
+
     return u_jp1
 
-def dirichlet(u_j, A, lmbda, dt, j, scheme):
+def dirichlet(u_j, A, lmbda, dx, dt, j, s_j, scheme):
 
     u_jp1 = np.zeros(u_j.size)
+
+    A = A[2:,2:] # reduce size of A for calculating inner grid points
 
     # create boundary condition array
     bound_array = np.zeros(u_j.size-2)
     bound_array[0] = p(j)
     bound_array[u_j.size-3] = q(j)
-
-    # evaluate RHS function
-    s_j = RHS_fun(j, u_j)
 
     # compute u(j+1) array
     u_jp1[1:-1] = np.add(A.dot(np.transpose(u_j[1:-1])) , lmbda*bound_array )
