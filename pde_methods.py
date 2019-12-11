@@ -213,13 +213,13 @@ def Q(j): # end at x = L
 
 def RMSE(exact, num):
 
-    error = np.sqrt( np.sum( abs(np.subtract(exact,num))))
+    error = np.sqrt( np.sum( np.power( np.subtract(exact,num), 2) ) / num.size )
 
     return error
 
 # set numerical parameters
-mx = 10   # number of gridpoints in space
-mt = 100    # number of gridpoints in time
+mx = 100   # number of gridpoints in space
+mt = 10000  # number of gridpoints in time
 
 # set problem parameters/functions
 kappa = 1.0   # diffusion constant
@@ -232,42 +232,46 @@ T=0.5   # total time to solve for
 errors = []
 mxs = []
 
-# for n in range(1,3): # exponent
-
-#     for i in range(1,10): # number of points for each exponent
-
-#         mx = np.power(10,n)*i
-
-#         mt = int(mx*T / np.power(L,2))
+#mt = 1000
 
 
-#         xx = np.linspace(0,L,mx+1)
 
-#         u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, forward_euler_dirichlet)
+for n in range(1,9): # number of points for each exponent
+   
+    mx = np.power(2,n)
+   
+    print(mx)
+    mt = np.power(mx, 2)
 
-#         error = RMSE(u_j, u_exact(xx,T) )
+    xx = np.linspace(0,L,mx+1)
 
-#         errors.append(error)
-#         mxs.append(mx)
+    u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, forward_euler_dirichlet)
 
-# #slope, intercept = np.polyfit(np.log(mxs), np.log(errors), 1)
+    error = RMSE(u_j, u_exact(xx,T) )
 
-# #print("Gradient = ",slope)
+    errors.append(error)
+    mxs.append(mx)
 
-# plt.loglog(mxs, errors)
-# plt.xlabel("Number of grid points in space")
-# plt.ylabel("RMSE")
+slope, intercept = np.polyfit(np.log(mxs), np.log(errors), 1)
 
-u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, forward_euler_dirichlet )
+print("Gradient = ",slope)
 
-#plot the final result and exact solution
-x = np.linspace(0, L, mx+1)
+plt.loglog(mxs, errors)
+plt.xlabel("Number of grid points in space")
+plt.ylabel("RMSE")
+plt.title("Plot of error against grid points in space.")
 
-plt.plot(x,u_j,'ro',label='t=')
+# u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, forward_euler_dirichlet )
 
-xx = np.linspace(0,L,250)
-plt.plot(xx,u_exact(xx,T),'b-',label='exact')
-plt.xlabel('x')
-plt.ylabel('u(x,0.5)')
-plt.legend(loc='upper right')
+# #plot the final result and exact solution
+# x = np.linspace(0, L, mx+1)
+
+# plt.plot(x,u_j,'ro',label='t=')
+
+# xx = np.linspace(0,L,250)
+# plt.plot(xx,u_exact(xx,T),'b-',label='exact')
+# plt.xlabel('x')
+# plt.ylabel('u(x,0.5)')
+# plt.legend(loc='upper right')
+# plt.show()
 plt.show()
