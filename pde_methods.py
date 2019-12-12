@@ -22,7 +22,45 @@ def u_I(x,L):
 def u_exact(x,t):
     # the exact solution
     y = np.exp(-kappa*(pi**2/L**2)*t)*np.sin(pi*x/L)
+
     return y
+
+def forward_euler(mx, lmbda, bound_cond):
+
+    A_diagonals = (lmbda, 1-2*lmbda, lmbda)
+    A = diags(A_diagonals, [-1,0,1], shape = (mx+1,mx+1), format='csc')
+
+    # edit matrix for neumann conditions 
+    if bound_cond == neumann: 
+        A[0,1] = 2*lmbda
+        A[mx, mx-1] = 2*lmbda
+
+    return A
+
+def backward_euler(mx, lmbda, bound_cond):
+
+    A_diagonals = (-lmbda, 1+2*lmbda, -lmbda)
+    A = diags(A_diagonals, [-1,0,1], shape = (mx+1,mx+1), format='csc')
+
+    # Edit matrix for neumann condition
+    if bound_cond == neumann:
+        A[1,0] = 2*lmbda
+        A[mx-1,mx] = 2*lmbda
+
+    A = inv(A)
+    return A
+
+def crank_nicholson(mx, lmbda, bound_cond):
+
+    A_diagonals = (-lmbda/2, 1+lmbda, -lmbda/2)
+    A = diags(A_diagonals, [-1,0,1], shape = (mx+1,mx+1), format='csc')
+
+    B_diagonals = (lmbda/2, 1-lmbda, lmbda/2)
+    B = diags(B_diagonals, [-1,0,1], shape = (mx+1,mx+1),  format='csc')
+
+    A = inv(A).dot(B)
+
+    return A
 
 def solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution):
 
@@ -34,29 +72,8 @@ def solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution)
 
     u_j = np.zeros(x.size)
 
-    # Set up matrices for dirichlet boundary conditions
-    if scheme == "forward_euler":
-    # create forward euler matrix
-
-        A_diagonals = (lmbda, 1-2*lmbda, lmbda)
-        A = diags(A_diagonals, [-1,0,1], shape = (mx+1,mx+1), format='csc')
-
-    # create backward euler matrix
-    if scheme == "backward_euler":
-        A_diagonals = (-lmbda, 1+2*lmbda, -lmbda)
-        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1), format='csc')
-        A = inv(A) # performing inversion here saves computation
-
-    # create Crank Nicholson matrix
-    if scheme == "crank_nicholson":
-        A_diagonals = (-lmbda/2, 1+lmbda, -lmbda/2)
-        A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1), format='csc')
-
-        B_diagonals = (lmbda/2, 1-lmbda, lmbda/2)
-        B = diags(B_diagonals, [-1,0,1], shape = (mx-1,mx-1),  format='csc')
-
-        A = inv(A).dot(B)
-
+    # calculate evolution matrix 
+    A = scheme(mx, lmbda, bound_cond)
 
     # Set initial condition
     for i in range(0, mx+1):
@@ -68,34 +85,36 @@ def solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution)
         # evaluate RHS function
         s_j = RHS_fun(j, u_j)
 
-        u_jp1 = bound_cond(u_j, A, lmbda, deltax, deltat, j, s_j, scheme)
+        u_jp1 = bound_cond(u_j, A, lmbda, deltax, deltat, j, s_j, scheme, bound_cond)
         
         # Update u_j
         u_j[:] = u_jp1[:]
 
     return(u_j)
 
-def neumann(u_j, A, lmbda, dx, dt, j, s_j, scheme):
-  
-    # edit FE matrix for neumann conditions
-    if scheme == "forward_euler":
-        A[0,1] = 2*lmbda
-        A[u_j.size-1, u_j.size-2] = 2*lmbda
+def neumann(u_j, A, lmbda, dx, dt, j, s_j, scheme, bound_cond):
 
-    # create bound array
-    bound_array = np.zeros(u_j.size)
-    bound_array[0] = -P(j)
-    bound_array[u_j.size-1] = Q(j)
+    # create rhs vector
+    if scheme == forward_euler:
+        rhs_vect = np.zeros(u_j.size)
+        rhs_vect[0] = -P(j)
+        rhs_vect[u_j.size-1] = Q(j)
+
+    if scheme == backward_euler:
+        rhs_vect = np.zeros(u_j.size)
+        rhs_vect[0] = P(j+1)
+        rhs_vect[u_j.size-1] = -Q(j+1)
+
 
     # compute u(j+1) array
-    u_jp1 = np.add(A.dot(u_j), 2*lmbda*dx*bound_array)
+    u_jp1 = np.add(A.dot(u_j), 2*lmbda*dx*rhs_vect)
 
     # add RHS function
     u_jp1 = np.add(u_jp1, dt*s_j)
 
     return u_jp1
 
-def dirichlet(u_j, A, lmbda, dx, dt, j, s_j, scheme):
+def dirichlet(u_j, A, lmbda, dx, dt, j, s_j, scheme, bound_cond):
 
     u_jp1 = np.zeros(u_j.size)
 
@@ -121,7 +140,9 @@ def dirichlet(u_j, A, lmbda, dx, dt, j, s_j, scheme):
 
 def RHS_fun(j, u_j):
 
-    s_j = np.zeros(u_j.size)
+    # define distribution of heat source
+
+    s_j = np.zeros(u_j.size) # array containing distribution of heat source
 
     for i in range(u_j.size):
 
@@ -130,7 +151,7 @@ def RHS_fun(j, u_j):
         else:
             s_j[i] = 0
     
-    return s_j
+    return s_j # return s_j = 0 for all i if no heat source required.
 
 # Dirichlet conditions
 def p(j): # u at end at x = 0
@@ -199,7 +220,9 @@ mxs = []
 # plt.ylabel("RMSE")
 # plt.title("Error Plot for Crank-Nicholson")
 
-u_j = solve_heat_eq(mx, mt, L, T, kappa, neumann, 'forward_euler', u_I )
+u_j = solve_heat_eq(mx, mt, L, T, kappa, dirichlet, crank_nicholson, u_I )
+
+print(u_j)
 
 #plot the final result and exact solution
 x = np.linspace(0, L, mx+1)
