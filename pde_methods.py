@@ -64,13 +64,44 @@ def crank_nicholson(mx, lmbda, bound_cond):
 
 def solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution):
 
+    """
+    Solves a 1D diffusion problem, boundary conditions 
+    can be selected by user.
+
+    Parameters
+    ----------
+    mx : int
+        The number of grid spacings in space.
+    mt : int
+        The number of grid spacings in time.
+    L : float
+        The size of the domain in space.
+    T : float
+        The size of the domain in time.
+    kappa : float
+        The diffusion constant
+    bound_cond : function
+        Function that returns array for next point in time, different
+        ones may be selected for different boundary conditions.
+    scheme : function
+        Function that returns the necessary evolution matrix based 
+        upon the choice of descretisation and boundary condition.
+    initial_distribution : function
+        Returns the initial temperature didtribution. 
+
+    Returns
+    ---------
+    A 1D numpy.array of the solutions at the desired point in time.
+
+    """
+
     x = np.linspace(0, L, mx+1)     # mesh points in space
     t = np.linspace(0, T, mt+1)     # mesh points in time
     deltax = x[1] - x[0]            # gridspacing in x
     deltat = t[1] - t[0]            # gridspacing in t
     lmbda = kappa*deltat/(deltax**2) 
 
-    u_j = np.zeros(x.size)
+    u_j = np.zeros(x.size) 
 
     # calculate evolution matrix 
     A = scheme(mx, lmbda, bound_cond)
@@ -94,6 +125,39 @@ def solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution)
 
 def neumann(u_j, A, lmbda, dx, dt, j, s_j, scheme, bound_cond):
 
+    """
+    Function that solves for the next time point, with Neumann
+    boundary conditions.
+
+    Parameters
+    ----------
+    u_j : numpy.array
+        Array of solutions in space for current point in time.
+    A : scipy.sparse.diags array
+        The evolution matrix.
+    lmbda : float
+        The mesh fourier number.
+    dx : float
+        Size of grid spacings in space.
+    dt : float
+        Size of grid spacings in time.
+    j : int
+        The index of the point in time being solved for.
+    s_j : numpy.array
+        Array containing values of right hand side function.
+    bound_cond : function
+        Function that returns array for next point in time, different
+        ones may be selected for different boundary conditions.
+    scheme : function
+        Function that returns the necessary evolution matrix based 
+        upon the choice of descretisation and boundary condition.
+
+    Returns
+    ----------
+    A 1D numpy.array of the solutions for the next point in time.
+
+    """
+
     # create rhs vector
     if scheme == forward_euler:
         rhs_vect = np.zeros(u_j.size)
@@ -115,6 +179,20 @@ def neumann(u_j, A, lmbda, dx, dt, j, s_j, scheme, bound_cond):
     return u_jp1
 
 def dirichlet(u_j, A, lmbda, dx, dt, j, s_j, scheme, bound_cond):
+
+    """
+    Function that solves for the next time point, with Dirichlet
+    boundary conditions.
+
+    Parameters
+    -----------
+    (The same as for the neumann function)
+
+    Returns
+    -----------
+    A 1D numpy.array of the solutions for the next point in time.
+
+    """
 
     u_jp1 = np.zeros(u_j.size)
 
@@ -140,7 +218,23 @@ def dirichlet(u_j, A, lmbda, dx, dt, j, s_j, scheme, bound_cond):
 
 def RHS_fun(j, u_j):
 
-    # define distribution of heat source
+    """
+    Function that calculates the distribution of a heat source inside 
+    the domain.
+
+    Parameters
+    ----------
+    j : int  
+        The index of the point in time being solved for.
+    u_j : numpy.array
+        Array of solutions in space for current point in time.
+
+    Returns
+    ---------
+    numpy.array containing the distribution of the heat source at the 
+    required point in time.
+
+    """
 
     s_j = np.zeros(u_j.size) # array containing distribution of heat source
 
@@ -169,6 +263,22 @@ def Q(j): # du/dx at end at x = L
 
 def RMSE(exact, num):
 
+    """
+    Function calculates the RMSE of a numerical solution.
+
+    Parameters
+    ----------
+    exact : numpy.array
+        Array containing exact solutions
+    num : numpy.array
+        Array containing numerical solutions
+
+    Returns
+    ----------
+    A float whose value is the root mean squared error of the numerical solution.
+     
+    """
+
     error = np.sqrt( np.sum( np.power( np.subtract(exact,num), 2) ) / num.size )
 
     return error
@@ -184,8 +294,8 @@ def L_2_norm(exact, num, dx):
     return np.sqrt(I)
 
 # set numerical parameters
-mx = 10   # number of gridpoints in space
-mt = 1000  # number of gridpoints in time
+mx = 512   # number of gridpoints in space
+mt = 10000  # number of gridpoints in time
 
 # set problem parameters/functions
 kappa = 1.0   # diffusion constant
@@ -202,51 +312,52 @@ mxs = []
 
 
 
-# for n in range(1,4): # number of points for each exponent
+for n in range(1,8): # number of points for each exponent
 
-#     for m in range(1,2):
+    mx = np.power(2,n)
    
-#         mx = m*np.power(10,n)
-   
-#         print(mx)
-#         mt = mx
+    mt = np.power(mx, 2)
 
-#         xx = np.linspace(0,L,mx+1)
+    #mt = int( T/L*np.power(mx, 2) )
 
-#         u_j = solve_heat_eq(mx, mt, L, T, kappa, dirichlet, 'crank_nicholson')
+    xx = np.linspace(0,L,mx+1)
 
-#         error = RMSE(u_j, u_exact(xx,T) )
+    u_j = solve_heat_eq(mx, mt, L, T, kappa, dirichlet, forward_euler, u_I)
+    u_j2 = solve_heat_eq(mx*2, mt*2, L, T, kappa, dirichlet, forward_euler, u_I)
 
-#         errors.append(error)
-#         mxs.append(mx)
+    error = L_2_norm(u_j, u_j2, L/mx )
+    #error = RMSE(u_j, u_exact(xx,T))
 
-# slope, intercept = np.polyfit(np.log(mxs), np.log(errors), 1)
+    errors.append(error)
+    mxs.append(mx)
 
-# print("Gradient = ",slope)
+#slope, intercept = np.polyfit(np.log(mxs), np.log(errors), 1)
 
-# plt.loglog(mxs, errors)
-# plt.xlabel("Number of grid points in space")
-# plt.ylabel("RMSE")
-# plt.title("Error Plot for Crank-Nicholson")
+#print("Gradient = ",slope)
 
-u_j = solve_heat_eq(mx, mt, L, T, kappa, dirichlet, crank_nicholson, u_I )
+plt.loglog(mxs, errors)
+plt.xlabel("Number of grid points in space")
+plt.ylabel("RMSE")
+plt.title("Error Plot for Forward Euler")
 
-xx = np.linspace(0,L,mx+1)
+# u_j = solve_heat_eq(mx, mt, L, T, kappa, dirichlet, crank_nicholson, u_I )
 
-print(L_2_norm(u_j, u_exact(xx,T), L/mx ))
+# xx = np.linspace(0,L,mx+1)
 
-print(u_j)
+# print(L_2_norm(u_j, u_exact(xx,T), L/mx ))
 
-#print(u_j)
+# #print(u_j)
 
-#plot the final result and exact solution
-x = np.linspace(0, L, mx+1)
+# #print(u_j)
 
-plt.plot(x,u_j,'ro',label='t=')
+# #plot the final result and exact solution
+# x = np.linspace(0, L, mx+1)
 
-#plt.plot(xx,u_exact(xx,T),'b-',label='exact')
-plt.xlabel('x')
-plt.ylabel('u(x,0.5)')
-plt.legend(loc='upper right')
-# # plt.show()
+# plt.plot(x,u_j,'ro',label='t=')
+
+# #plt.plot(xx,u_exact(xx,T),'b-',label='exact')
+# plt.xlabel('x')
+# plt.ylabel('u(x,0.5)')
+# plt.legend(loc='upper right')
+# # # # plt.show()
 plt.show()
