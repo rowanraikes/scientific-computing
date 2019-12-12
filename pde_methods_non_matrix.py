@@ -32,7 +32,7 @@ def solve_heat_eq(mx, mt, L, T, kappa):
 
     for j in range(1, mt+1):
 
-        u_jp1 = forward_euler(u_j, lmbda, i, j, mx, dx, dt)
+        u_jp1 = backward_euler(u_j, lmbda, i, j, mx, dx, dt)
         print(u_jp1)
  
         # Update u_j
