@@ -173,6 +173,15 @@ def RMSE(exact, num):
 
     return error
 
+def L_2_norm(exact, num, dx):
+
+    # solutions arrays must be of odd length
+    g_sq = np.power( abs(np.subtract(exact, num)), 2)
+
+    # simpsons ruke for integration
+    I = (dx/3)*(g_sq[0] + np.sum(g_sq[1:g_sq.size-1:2]) + np.sum(g_sq[2:g_sq.size-1:2]) + g_sq[-1])
+
+    return np.sqrt(I)
 
 # set numerical parameters
 mx = 10   # number of gridpoints in space
@@ -222,14 +231,19 @@ mxs = []
 
 u_j = solve_heat_eq(mx, mt, L, T, kappa, dirichlet, crank_nicholson, u_I )
 
+xx = np.linspace(0,L,mx+1)
+
+print(L_2_norm(u_j, u_exact(xx,T), L/mx ))
+
 print(u_j)
+
+#print(u_j)
 
 #plot the final result and exact solution
 x = np.linspace(0, L, mx+1)
 
 plt.plot(x,u_j,'ro',label='t=')
 
-xx = np.linspace(0,L,250)
 #plt.plot(xx,u_exact(xx,T),'b-',label='exact')
 plt.xlabel('x')
 plt.ylabel('u(x,0.5)')
