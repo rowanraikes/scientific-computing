@@ -16,12 +16,21 @@ def test(solutions, x, T, L):
 
 	error_tol = 0.01
 
-	for i in range(solutions.size):
-		if abs(solutions[i] - u_exact(x[i], T, L)) > error_tol:
-			print("Test failed at point of index: ", i)
-			exit()
+	if L_2_norm(solutions,x,0.1) > error_tol:
+		print("Test failed")
+		exit()
 
 	print("Test passed")
+
+def L_2_norm(num1, num2, dx):
+
+    # solutions arrays must be of odd length
+    g_sq = np.power( abs(np.subtract(num1, num2)), 2)
+
+    # simpsons ruke for integration
+    I = (dx/3)*(g_sq[0] + np.sum(g_sq[1:g_sq.size-1:2]) + np.sum(g_sq[2:g_sq.size-1:2]) + g_sq[-1])
+
+    return np.sqrt(I)
 
 # set numerical parameters
 mx = 10     # number of gridpoints in space
@@ -32,19 +41,8 @@ kappa = 1.0   # diffusion constant
 L=1.0         # length of spatial domain
 T=0.1        # total time to solve for
 
-u_j = solve_heat_eq(mx, mt, L, T, kappa)
+u_j = solve_heat_eq(mx, mt, L, T, kappa, dirichlet, forward_euler, u_I)
 
-# plot the final result and exact solution
-fig = plt.figure()
-x = np.linspace(0, L, mx+1)
-
-plt.plot(x,u_j,'ro',label='num')
-xx = np.linspace(0,L,250)
-plt.plot(xx,u_exact(xx,T,L),'b-',label='exact')
-plt.xlabel('x')
-plt.ylabel('u(x,0.5)')
-plt.legend(loc='upper right')
-plt.show()
 
 # Test the numerical solution
 test(u_j, x, T, L)
