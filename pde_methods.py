@@ -43,13 +43,14 @@ def forward_euler(mx, lmbda, bound_cond):
 
 def backward_euler(mx, lmbda, bound_cond):
 
-    #A_diagonals = (-lmbda, 2*lmbda-1, -lmbda)
-    #A = diags(A_diagonals, [-1,0,1], shape = (mx+1,mx+1), format='csc')
-
+    
     # Edit matrix for neumann condition
     if bound_cond == neumann:
-        A[1,0] = 2*lmbda
-        A[mx-1,mx] = 2*lmbda
+
+        A_diagonals = (-lmbda, 2*lmbda+1, -lmbda)
+        A = diags(A_diagonals, [-1,0,1], shape = (mx+1,mx+1), format='csc')
+        A[0,1] = -2*lmbda
+        A[mx,mx-1] = -2*lmbda
 
     if bound_cond == dirichlet:
 
@@ -180,14 +181,18 @@ def neumann(u_j, A, lmbda, dx, dt, j, s_j, scheme, bound_cond):
         rhs_vect[0] = -P(j)
         rhs_vect[u_j.size-1] = Q(j)
 
+        u_jp1 = np.add(A.dot(u_j), 2*lmbda*dx*rhs_vect)
+
     if scheme == backward_euler:
         rhs_vect = np.zeros(u_j.size)
-        rhs_vect[0] = P(j+1)
-        rhs_vect[u_j.size-1] = -Q(j+1)
+        rhs_vect[0] = -P(j+1)
+        rhs_vect[u_j.size-1] = Q(j+1)
+
+        u_jp1 = A.dot(np.add(u_j, -2*lmbda*dx*rhs_vect))
 
 
     # compute u(j+1) array
-    u_jp1 = np.add(A.dot(u_j), 2*lmbda*dx*rhs_vect)
+    
 
     # add RHS function
     u_jp1 = np.add(u_jp1, dt*s_j)
@@ -335,7 +340,7 @@ mt = 1000  # number of gridpoints in time
 # set problem parameters/functions
 kappa = 1.0   # diffusion constant
 L=1.0         # length of spatial domain
-T=0.5   # total time to solve for
+T=0.1   # total time to solve for
 
 #u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet_bound_cond_fe )
 
@@ -375,7 +380,7 @@ mxs = []
 # plt.ylabel("RMSE")
 # plt.title("Error Plot for Forward Euler")
 
-u_j = solve_heat_eq(mx, mt, L, T, kappa, dirichlet, crank_nicholson, u_I )
+u_j = solve_heat_eq(mx, mt, L, T, kappa, neumann, backward_euler, u_I )
 
 print(u_j)
 
