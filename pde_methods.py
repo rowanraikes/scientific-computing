@@ -116,10 +116,12 @@ def solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution)
         The diffusion constant
     bound_cond : function
         Function that returns array for next point in time, different
-        ones may be selected for different boundary conditions.
+        ones may be selected for different boundary conditions. Can be 
+        set to neumann or dirichlet
     scheme : function
         Function that returns the necessary evolution matrix based 
         upon the choice of descretisation and boundary condition.
+        can be set to; forward_euler, backward_euler or crank_nicholson. 
     initial_distribution : function
         the initial temperature distribution. 
 
@@ -293,12 +295,6 @@ def RHS_fun(j, u_j):
 
     s_j = np.zeros(u_j.size) # array containing distribution of heat source
 
-    for i in range(u_j.size):
-
-        if i == 1:
-            s_j[i] = 0
-        else:
-            s_j[i] = 0
     
     return s_j # return s_j = 0 for all i if no heat source required.
 
