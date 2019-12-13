@@ -15,8 +15,19 @@ from scipy.sparse.linalg import inv
 
 
 def u_I(x,L):
-    # initial temperature distribution
-    y = np.sin(pi*x/L) + 0.1
+    """
+    initial temperature distribution
+    Inputs
+    --------
+    x : float
+        Point in the spatial domain.
+    L : float
+        Length of spatial domain.
+    Returns
+    ---------
+    Initial temperature at the point x.
+    """
+    y = np.sin(pi*x/L) 
     return y
 
 def u_exact(x,t):
@@ -26,6 +37,7 @@ def u_exact(x,t):
     return y
 
 def forward_euler(mx, lmbda, bound_cond):
+
 
     A_diagonals = (lmbda, 1-2*lmbda, lmbda)
     A = diags(A_diagonals, [-1,0,1], shape = (mx+1,mx+1), format='csc')
@@ -70,10 +82,15 @@ def crank_nicholson(mx, lmbda, bound_cond):
         A_diagonals = (-lmbda/2, 1+lmbda, -lmbda/2)
         A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1), format='csc')
 
-        #A[0,1] = 0
-        #A[mx-2,mx-3] = 0
+    if bound_cond == neumann:
 
-        
+        A_diagonals = (-lmbda/2, 1+lmbda, -lmbda/2)
+        A = diags(A_diagonals, [-1,0,1], shape = (mx+1,mx+1), format='csc')
+
+        A[0,1] = -lmbda
+        A[1,0] = 0
+        A[mx,mx-1] = -lmbda
+        A[mx-1,mx] = 0
 
     A = inv(A)
 
@@ -104,13 +121,23 @@ def solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution)
         Function that returns the necessary evolution matrix based 
         upon the choice of descretisation and boundary condition.
     initial_distribution : function
-        Returns the initial temperature didtribution. 
+        the initial temperature distribution. 
 
     Returns
     ---------
     A 1D numpy.array of the solutions at the desired point in time.
 
     """
+
+    # Error handling
+    if mx*mt*L*T < 0:
+        print("Error - mx, mt, L and T must all be positive.")
+        exit()
+
+    if type(mx) != int or type(mt) != int:
+        print("Error - grid spacings mx and mt must be integers.")
+        exit()
+
 
     x = np.linspace(0, L, mx+1)     # mesh points in space
     t = np.linspace(0, T, mt+1)     # mesh points in time
@@ -132,7 +159,7 @@ def solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution)
 
         # evaluate RHS function
         s_j = RHS_fun(j, u_j)
-
+     
         u_jp1 = bound_cond(u_j, A, lmbda, deltax, deltat, j, s_j, scheme, bound_cond)
         
         # Update u_j
@@ -177,23 +204,25 @@ def neumann(u_j, A, lmbda, dx, dt, j, s_j, scheme, bound_cond):
 
     # create rhs vector
     if scheme == forward_euler:
-        rhs_vect = np.zeros(u_j.size)
-        rhs_vect[0] = -P(j)
-        rhs_vect[u_j.size-1] = Q(j)
-
-        u_jp1 = np.add(A.dot(u_j), 2*lmbda*dx*rhs_vect)
+    
+        u_jp1 = np.add(A.dot(u_j), 2*lmbda*dx*bound_array_neumann(j,u_j.size))
 
     if scheme == backward_euler:
-        rhs_vect = np.zeros(u_j.size)
-        rhs_vect[0] = -P(j+1)
-        rhs_vect[u_j.size-1] = Q(j+1)
 
-        u_jp1 = A.dot(np.add(u_j, -2*lmbda*dx*rhs_vect))
+        u_jp1 = A.dot(np.add(u_j, -2*lmbda*dx*bound_array_neumann(j,u_j.size)))
 
+    if scheme == crank_nicholson:
 
-    # compute u(j+1) array
+        B_diagonals = (lmbda/2, 1-lmbda, lmbda/2)
+        B = diags(B_diagonals, [-1,0,1], shape = (mx+1,mx+1),  format='csc')
+
+        B[0,1] = lmbda
+        B[1,0] = 0
+        B[mx,mx-1] = lmbda
+        B[mx-1,mx] = 0
+
+        u_jp1 = A.dot(np.add(B.dot(u_j), -2*lmbda*dx*bound_array_neumann(j,u_j.size)))
     
-
     # add RHS function
     u_jp1 = np.add(u_jp1, dt*s_j)
 
@@ -214,29 +243,23 @@ def dirichlet(u_j, A, lmbda, dx, dt, j, s_j, scheme, bound_cond):
     A 1D numpy.array of the solutions for the next point in time.
 
     """
-
     u_jp1 = np.zeros(u_j.size)
-
-    # create boundary condition array
-    #bound_array = np.zeros(u_j.size-2)
-    #bound_array[0] = p(j)
-    #bound_array[u_j.size-3] = q(j)
 
     # compute u(j+1) array
     if scheme == backward_euler:
     
-        u_jp1[1:-1] = A.dot( np.add(np.transpose(u_j[1:-1]),  lmbda*bound_array(j, u_j)) )
+        u_jp1[1:-1] = A.dot( np.add(np.transpose(u_j[1:-1]),  lmbda*bound_array_dirichlet(j, u_j.size)) )
 
     if scheme == forward_euler:
 
-        u_jp1[1:-1] = np.add( A.dot(np.transpose(u_j[1:-1])) ,  lmbda*bound_array(j, u_j) )
+        u_jp1[1:-1] = np.add( A.dot(np.transpose(u_j[1:-1])) ,  lmbda*bound_array_dirichlet(j, u_j.size) )
 
     if scheme == crank_nicholson:
 
         B_diagonals = (lmbda/2, 1-lmbda, lmbda/2)
         B = diags(B_diagonals, [-1,0,1], shape = (mx-1,mx-1),  format='csc')
 
-        u_jp1[1:-1] = A.dot( np.add( np.add( 0.5*lmbda*bound_array(j, u_j), 0.5*lmbda*bound_array(j, u_j) ), B.dot(np.transpose(u_j[1:-1]))))
+        u_jp1[1:-1] = A.dot( np.add( np.add( 0.5*lmbda*bound_array_dirichlet(j, u_j.size), 0.5*lmbda*bound_array_dirichlet(j, u_j.size) ), B.dot(np.transpose(u_j[1:-1]))))
 
     # add RHS function
     u_jp1 = np.add(u_jp1, dt*s_j)
@@ -281,18 +304,28 @@ def RHS_fun(j, u_j):
 
 # Dirichlet conditions
 def p(j): # u at end at x = 0
-    return 0.2
+    return 0
 
 def q(j): # u at end at x = L
-    return 0.1
+    return 0
 
-def bound_array(j, u_j):
+def bound_array_dirichlet(j, size):
 
-    bound_array = np.zeros(u_j.size-2)
+    bound_array = np.zeros(size-2)
     bound_array[0] = p(j)
-    bound_array[u_j.size-3] = q(j)
+    bound_array[size-3] = q(j)
 
     return bound_array
+
+def bound_array_neumann(j, size):
+
+    bound_array = np.zeros(size)
+    bound_array[0] = -P(j)
+    bound_array[size-1] = Q(j)
+
+    return bound_array
+
+
 
 # Neumann conditions
 def P(j): # du/dx at end at x = 0
@@ -323,83 +356,71 @@ def RMSE(exact, num):
 
     return error
 
-def L_2_norm(exact, num, dx):
+def L_2_norm(num1, num2, dx):
 
     # solutions arrays must be of odd length
-    g_sq = np.power( abs(np.subtract(exact, num)), 2)
+    g_sq = np.power( abs(np.subtract(num1, num2)), 2)
 
     # simpsons ruke for integration
     I = (dx/3)*(g_sq[0] + np.sum(g_sq[1:g_sq.size-1:2]) + np.sum(g_sq[2:g_sq.size-1:2]) + g_sq[-1])
 
     return np.sqrt(I)
 
+def snapshots(N, dn, L, kappa,bound_cond,scheme,initial_distribution):
+
+    """
+    Creates plot of solutions snapshots at the desired points in time.
+
+    Parameters
+    ----------
+    N : int
+        number of snapshots.
+    dn : float
+        time step between each snapshot.
+    L : float
+        The size of the domain in space.
+    kappa : float
+        The diffusion constant
+    bound_cond : function
+        Function that returns array for next point in time, different
+        ones may be selected for different boundary conditions.
+    scheme : function
+        Function that returns the necessary evolution matrix based 
+        upon the choice of descretisation and boundary condition.
+    initial_distribution : function
+        the initial temperature distribution. 
+
+    """
+
+    mx = 100
+    mt = 1000
+    x = np.linspace(0, L, mx+1)
+
+    fig = plt.figure()
+
+    for i in range(1,N+1):
+        T = dn*i
+        u_j = solve_heat_eq(mx, mt, L, T, kappa, bound_cond, scheme, initial_distribution)
+        
+        plt.plot(x,u_j,label="t="+str(round(T,3)))
+        plt.xlabel("x")
+        plt.ylabel("Temperature")
+        plt.legend(loc='upper right')
+        plt.title("Snapshots of solutions")
+
+
 # set numerical parameters
-mx = 10  # number of gridpoints in space
+mx = 100  # number of gridpoints in space
 mt = 1000  # number of gridpoints in time
 
 # set problem parameters/functions
 kappa = 1.0   # diffusion constant
 L=1.0         # length of spatial domain
-T=0.1   # total time to solve for
 
-#u_j = solve_heat_eq_matrix(mx, mt, L, T, kappa, dirichlet_bound_cond_fe )
+##### Examples #####
+# Produce plot of snapshots for heat eq with neumann boundary conditions.
+N = 5
+dn = 0.01
+snapshots(N, dn, L, kappa, neumann, backward_euler, u_I)
 
-
-errors = []
-mxs = []
-
-#mt = 1000
-
-
-
-# for n in range(1,8): # number of points for each exponent
-
-#     mx = np.power(2,n)
-   
-#     mt = np.power(mx, 2)
-
-#     #mt = int( T/L*np.power(mx, 2) )
-
-#     xx = np.linspace(0,L,mx+1)
-
-#     u_j = solve_heat_eq(mx, mt, L, T, kappa, dirichlet, forward_euler, u_I)
-#     u_j2 = solve_heat_eq(mx*2, mt*2, L, T, kappa, dirichlet, forward_euler, u_I)
-
-#     error = L_2_norm(u_j, u_j2, L/mx )
-#     #error = RMSE(u_j, u_exact(xx,T))
-
-#     errors.append(error)
-#     mxs.append(mx)
-
-# #slope, intercept = np.polyfit(np.log(mxs), np.log(errors), 1)
-
-# #print("Gradient = ",slope)
-
-# plt.loglog(mxs, errors)
-# plt.xlabel("Number of grid points in space")
-# plt.ylabel("RMSE")
-# plt.title("Error Plot for Forward Euler")
-
-u_j = solve_heat_eq(mx, mt, L, T, kappa, neumann, backward_euler, u_I )
-
-print(u_j)
-
-#xx = np.linspace(0,L,mx+1)
-
-#print(L_2_norm(u_j, u_exact(xx,T), L/mx ))
-
-#print(u_j)
-
-#print(u_j)
-
-#plot the final result and exact solution
-x = np.linspace(0, L, mx+1)
-
-plt.plot(x,u_j,'ro',label='t=')
-
-#plt.plot(xx,u_exact(xx,T),'b-',label='exact')
-plt.xlabel('x')
-plt.ylabel('u(x,0.5)')
-plt.legend(loc='upper right')
-# # # # plt.show()
 plt.show()
