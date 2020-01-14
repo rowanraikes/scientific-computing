@@ -1,7 +1,8 @@
-# simple forward Euler solver for the 1D heat equation
+# Solver for the 1D heat equation
 #   u_t = kappa u_xx  0<x<L, 0<t<T
-# with zero-temperature boundary conditions
-#   u=0 at x=0,L, t>0
+# with choice of Neumann or Dirichlet boundary conditions
+#  
+# with choice of Forward Euler, Backward Euler or Crank-Nicholson Schemes 
 # and prescribed initial temperature
 #   u=u_I(x) 0<=x<=L,t=0
 
@@ -69,8 +70,6 @@ def backward_euler(mx, lmbda, bound_cond):
         A_diagonals = (-lmbda, 2*lmbda+1, -lmbda)
         A = diags(A_diagonals, [-1,0,1], shape = (mx-1,mx-1), format='csc')
 
-        #A[0,1] = 0
-        #A[mx-2, mx-3] = 0
 
     A = inv(A)
     return A
